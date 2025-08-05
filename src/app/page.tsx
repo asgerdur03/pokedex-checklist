@@ -1,95 +1,118 @@
+'use client';
 import Image from "next/image";
 import styles from "./page.module.css";
+import { useState, useEffect } from "react";
+import PokemonCard from "@/components/PokemonCard/PokemonCard";
 
+const allPokemonsUrl = "https://pokeapi.co/api/v2/pokemon?limit=1025"; 
+
+/**
+ * https://pokeapi.co/api/v2/pokemon?limit=1025"; allir pokemonar: [name, url]
+ * https://pokeapi.co/api/v2/pokemon/{id}; single pokemon
+ * [id, name, base_experience, sprites] (kannsk meira seinna?)
+ */
+
+type Pokemon = {
+  id: number;
+  name: string;
+  base_experience: number;
+  sprites: {
+    other: {
+      "official-artwork": {
+        front_default: string;
+      };
+    };
+  };
+}
+
+type PokeList = {
+  name: string;
+  url: string;
+};
 export default function Home() {
+  const [pokemons, setPokemons] = useState<Pokemon[]>([]);
+  const [pokeList, setPokeList] = useState<PokeList[]>([]);
+
+  const [page, setPage] = useState(0);
+  const [loading, setLoading] = useState(false);
+
+  const pageSize = 20;
+
+  const getPokemons = async () => {
+    const response = await fetch(allPokemonsUrl);
+    const data = await response.json();
+
+    setPokeList(data.results);
+  };
+
+
+
+  const getSinglePokemon = async (page: number) => {
+    setLoading(true);
+    const start = page * pageSize;
+    const end = start + pageSize;
+    const batch = pokeList.slice(start, end);
+
+    const singlePokeData = await Promise.all(
+      batch.map(async (pokemon) => {
+        const response = await fetch(pokemon.url)
+        const data = await response.json()
+        return data
+      })
+    )
+
+    const formattedData: Pokemon[] = singlePokeData.map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      base_experience: p.base_experience,
+      sprites: {
+        other: {
+          "official-artwork": {
+            front_default: p.sprites.other["official-artwork"].front_default,
+          },
+        },
+      },
+    }));
+
+    setPokemons(prev => [...prev, ...formattedData]);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    getPokemons();
+  }, []);
+  
+
+  useEffect(() => {
+    if (pokeList.length > 0) {
+      getSinglePokemon(page);
+    }
+  }, [pokeList]);
+
+  const loadMore = () => {
+    const nextPage = page + 1;
+    setPage(nextPage);
+    getSinglePokemon(nextPage);
+  };
+
+
+
+
+
   return (
     <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
+      {pokemons.map((pokemon, index) => (
+        <PokemonCard
+          key={index}
+          id={pokemon.id}
+          name={pokemon.name}
+          base_experience={pokemon.base_experience}
+          imageUrl={pokemon.sprites.other["official-artwork"].front_default}
+          checked={false}
+          onToggle={() => {}}
         />
-        <ol>
-          <li>
-            Get started by editing <code>src/app/page.tsx</code>.
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
-
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.secondary}
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className={styles.footer}>
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      ))}
+      <button onClick={loadMore}>more</button>
     </div>
   );
 }
